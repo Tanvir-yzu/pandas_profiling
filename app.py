@@ -13,17 +13,77 @@ from pathlib import Path
 st.set_page_config(
     page_title="Auto EDA Generator",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
-# ---------------- Custom CSS ----------------
+# ---------------- Custom CSS for Black BG & Colorful UI ----------------
 st.markdown("""
 <style>
-.main-title {font-size: 2.8rem; font-weight: 700;}
-.subtitle {font-size: 1.1rem; color: #6c757d; margin-bottom: 2rem;}
-.card {background: rgba(255,255,255,0.04); border-radius: 14px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;}
-.upload-box {border: 2px dashed #4CAF50; border-radius: 14px; padding: 30px; text-align: center; font-size: 1.1rem; color: #4CAF50;}
-.info-text {font-size: 0.95rem; color: #555; margin-bottom: 10px;}
+/* Full page black background */
+[data-testid="stAppViewContainer"] {
+    background-color: #0ff00;
+    color: #ffffff;
+}
+
+/* Header titles */
+.main-title {font-size: 3rem; font-weight: 700; color: #ffffff; text-shadow: 2px 2px 5px #FF5733;}
+.subtitle {font-size: 1.2rem; color: #dddddd; margin-bottom: 2rem;}
+
+/* Cards */
+.card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 8px 20px rgba(255,255,255,0.15);
+    margin-bottom: 25px;
+}
+
+/* Drag & Drop box */
+.upload-box {
+    border: 2px dashed #FFD700;
+    border-radius: 14px;
+    padding: 40px;
+    text-align: center;
+    font-size: 1.2rem;
+    color: #FFD700;
+    font-weight: 600;
+    transition: 0.3s;
+}
+.upload-box:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Info text */
+.info-text {font-size: 0.95rem; color: #f0f0f0; margin-bottom: 10px;}
+
+/* EDA Report card */
+.eda-card {
+    background: linear-gradient(135deg, #ff416c, #ff4b2b);
+    color: #ffffff;
+    border-radius: 16px;
+    padding: 25px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 25px rgba(255, 75, 43, 0.5);
+}
+
+/* Download button */
+.st-download-button>button {
+    background: linear-gradient(135deg, #36D1DC, #5B86E5);
+    color: white;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 10px 20px;
+    border: none;
+    transition: 0.3s;
+}
+.st-download-button>button:hover {
+    background: linear-gradient(135deg, #5B86E5, #36D1DC);
+    transform: translateY(-2px);
+}
+
+/* Footer */
+footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -59,7 +119,7 @@ tab1, tab2, tab3, tab4 = st.tabs(
 )
 
 df = None
-input_name = "dataset"  # default name
+input_name = "dataset"
 
 # ---- File Upload ----
 with tab1:
@@ -71,7 +131,7 @@ with tab1:
         label_visibility="collapsed"
     )
     if uploaded_file:
-        input_name = Path(uploaded_file.name).stem  # Save base name
+        input_name = Path(uploaded_file.name).stem
         try:
             if uploaded_file.name.endswith(".csv") or uploaded_file.name.endswith(".txt"):
                 df = pd.read_csv(uploaded_file)
@@ -87,7 +147,7 @@ with tab2:
     st.markdown('<div class="info-text">Enter a direct CSV URL. Supported format: CSV (.csv)</div>', unsafe_allow_html=True)
     csv_url = st.text_input("Paste direct CSV URL")
     if csv_url:
-        input_name = Path(csv_url).stem  # Use URL base name
+        input_name = Path(csv_url).stem
         try:
             response = requests.get(csv_url)
             response.raise_for_status()
@@ -126,8 +186,8 @@ st.markdown('</div>', unsafe_allow_html=True)
 if df is not None:
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.success("✅ Dataset Loaded Successfully")
-    st.markdown("#### 👀 Preview")
-    st.dataframe(df.head(), use_container_width=True)
+    st.markdown(f"#### 👀 {input_name} Preview")
+    st.dataframe(df.head(10), use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1,2,1])
@@ -136,18 +196,19 @@ if df is not None:
 
     if generate:
         with st.spinner("🔍 Generating EDA report..."):
-            profile = ProfileReport(df, title="Auto EDA Report", explorative=True)
+            profile = ProfileReport(df, title=f"{input_name} EDA Report", explorative=True)
             report_name = f"{input_name}_eda.html"
             with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
                 profile.to_file(tmp.name)
                 html_path = tmp.name
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("## 📈 EDA Report")
+        # Gradient themed EDA card
+        st.markdown('<div class="eda-card">', unsafe_allow_html=True)
+        st.markdown(f"## 📈 {input_name} EDA Report Preview")
         with open(html_path, "r", encoding="utf-8") as f:
             st.components.v1.html(f.read(), height=1000, scrolling=True)
 
-        # Download button with same base name
+        # Download button with gradient theme
         with open(html_path, "rb") as f:
             st.download_button(
                 "⬇️ Download HTML Report",
@@ -159,4 +220,4 @@ if df is not None:
 
 # ---------------- Footer ----------------
 st.markdown("---")
-st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API • Server-ready & Cached")
+st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API • Black Background & Gradient UI")
