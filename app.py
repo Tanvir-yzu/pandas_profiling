@@ -238,5 +238,11 @@ if df is not None:
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------- Footer ----------------
-st.markdown("---")
-st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API • Black Background & Gradient UI • Safe File Loader")
+st.markdown("""
+<hr style="border:1px solid #444444">
+<div style="text-align:center; color:#ffffff; font-size:0.9rem; margin-top:10px;">
+⚡ Built with Streamlit • ydata-profiling • Kaggle API • Black Background & Gradient UI • Safe File Loader <br>
+📧 Contact: 2020tanvir1971@gmail.com | 🌐 Website: https://yourwebsite.com | 📱 Phone: +88 0173837737
+</div>
+""", unsafe_allow_html=True)
+
