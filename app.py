@@ -97,23 +97,60 @@ footer {visibility: hidden;}
 # ====================================================
 # 📘 API DOCUMENTATION PAGE
 # ====================================================
-if page == "📘 API Documentation":
+if page == "📘 Kaggle Token Doc":
 
-    st.markdown('<div class="main-title">📘 API Documentation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">📘 Kaggle Token Documentation</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Auto EDA Generator – Usage Guide & Integration</div>', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="card">
+    🚀 Overview
 
-    ## 🚀 Overview
-    The **Auto EDA Generator** automatically creates an exploratory data analysis (EDA)
-    HTML report from structured datasets.
+    The **Auto EDA Generator** automatically creates an **Exploratory Data Analysis (EDA) HTML report** from structured datasets with no manual coding required.
 
-    Supported sources:
-    - File Upload (CSV, Excel, JSON, TXT)
-    - CSV URL
-    - Kaggle Datasets (with kaggle.json)
+    ---
 
+    * **Kaggle Datasets**
+
+    * Load datasets directly from Kaggle using the Kaggle API
+    * Requires a `kaggle.json` authentication file
+
+    ---
+
+    ## 🔐 Kaggle API Setup
+
+    To access Kaggle datasets, you must create and upload a **Kaggle API token**.
+
+    ### Step 1: Generate Kaggle API Token
+
+    Visit the following link and create a new API token:
+
+    ```
+    https://www.kaggle.com/settings
+    ```
+
+    Download the file named **`kaggle.json`**.
+
+    ---
+
+    ### Step 2: kaggle.json File Format
+
+    Your `kaggle.json` file should contain the following:
+
+    ```json
+    {
+    "username": "your_kaggle_username",
+    "key": "your_kaggle_api_key"
+    }
+    ```
+
+    ---
+
+    ### Step 3: Upload in Application
+
+    * Upload `kaggle.json` once in the **Kaggle Token** section
+    * The token is stored securely for future use
+    * If the token already exists, the app will notify you that it is up to date
     ---
 
     ## 📂 Supported File Formats
