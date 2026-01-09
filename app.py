@@ -21,7 +21,7 @@ st.markdown("""
 <style>
 /* Full page black background */
 [data-testid="stAppViewContainer"] {
-    background-color: #0ff00;
+    background-color: #0B544C;
     color: #ffffff;
 }
 
@@ -91,6 +91,33 @@ footer {visibility: hidden;}
 st.markdown('<div class="main-title">📊 Auto EDA Generator</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Upload CSV/Excel/JSON/TXT, paste URL, or load Kaggle datasets</div>', unsafe_allow_html=True)
 
+# ---------------- Safe file loader ----------------
+def load_file(file):
+    """Load CSV, Excel, JSON, TXT safely with friendly error messages"""
+    try:
+        if file.name.endswith(".csv") or file.name.endswith(".txt"):
+            return pd.read_csv(file)
+        elif file.name.endswith(".xlsx") or file.name.endswith(".xls"):
+            try:
+                import openpyxl
+                return pd.read_excel(file)
+            except ModuleNotFoundError:
+                st.error("❌ Excel files require 'openpyxl'. Install it using `pip install openpyxl`")
+                return None
+        elif file.name.endswith(".json"):
+            return pd.read_json(file)
+    except Exception as e:
+        st.error(f"❌ Could not read file: {e}")
+        return None
+
+def load_csv_stringio(string_io, name="dataset"):
+    """Load CSV from StringIO safely"""
+    try:
+        return pd.read_csv(string_io)
+    except Exception as e:
+        st.error(f"❌ Could not read CSV ({name}): {e}")
+        return None
+
 # ---------------- Kaggle API Setup ----------------
 @st.cache_resource
 def get_kaggle_api(kaggle_json_content=None):
@@ -132,15 +159,7 @@ with tab1:
     )
     if uploaded_file:
         input_name = Path(uploaded_file.name).stem
-        try:
-            if uploaded_file.name.endswith(".csv") or uploaded_file.name.endswith(".txt"):
-                df = pd.read_csv(uploaded_file)
-            elif uploaded_file.name.endswith(".xlsx") or uploaded_file.name.endswith(".xls"):
-                df = pd.read_excel(uploaded_file)
-            elif uploaded_file.name.endswith(".json"):
-                df = pd.read_json(uploaded_file)
-        except Exception as e:
-            st.error(f"❌ Could not read file: {e}")
+        df = load_file(uploaded_file)
 
 # ---- CSV URL ----
 with tab2:
@@ -151,9 +170,9 @@ with tab2:
         try:
             response = requests.get(csv_url)
             response.raise_for_status()
-            df = pd.read_csv(StringIO(response.text))
-        except:
-            st.error("❌ Failed to load CSV from URL")
+            df = load_csv_stringio(StringIO(response.text), csv_url)
+        except Exception as e:
+            st.error(f"❌ Failed to load CSV from URL: {e}")
 
 # ---- Kaggle Dataset ----
 with tab3:
@@ -175,7 +194,7 @@ with tab3:
             kaggle_csv_files = download_kaggle_csvs(api, kaggle_dataset_name)
             selected_csv = st.selectbox("Select CSV to analyze", list(kaggle_csv_files.keys()))
             if selected_csv:
-                df = pd.read_csv(kaggle_csv_files[selected_csv])
+                df = load_file(open(kaggle_csv_files[selected_csv], "rb"))
                 input_name = Path(selected_csv).stem
         except Exception as e:
             st.error(f"Kaggle download failed: {e}")
@@ -220,4 +239,4 @@ if df is not None:
 
 # ---------------- Footer ----------------
 st.markdown("---")
-st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API • Black Background & Gradient UI")
+st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API • Black Background & Gradient UI • Safe File Loader")
