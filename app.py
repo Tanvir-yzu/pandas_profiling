@@ -21,7 +21,7 @@ st.markdown("""
 <style>
 /* Full page black background */
 [data-testid="stAppViewContainer"] {
-    background-color: #0B544C;
+    background-color: #205C56;
     color: #ffffff;
 }
 
