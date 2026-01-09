@@ -58,7 +58,7 @@ A modern, web-based Exploratory Data Analysis (EDA) tool built with Streamlit an
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/yourusername/streamlit-auto-eda-app.git
+git clone https://github.com/Tanvir-yzu/pandas_profiling.git
 cd "Streamlit Auto-EDA app"
 ```
 
