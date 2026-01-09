@@ -93,7 +93,6 @@ st.markdown('<div class="subtitle">Upload CSV/Excel/JSON/TXT, paste URL, or load
 
 # ---------------- Safe file loader ----------------
 def load_file(file):
-    """Load CSV, Excel, JSON, TXT safely with friendly error messages"""
     try:
         if file.name.endswith(".csv") or file.name.endswith(".txt"):
             return pd.read_csv(file)
@@ -111,20 +110,25 @@ def load_file(file):
         return None
 
 def load_csv_stringio(string_io, name="dataset"):
-    """Load CSV from StringIO safely"""
     try:
         return pd.read_csv(string_io)
     except Exception as e:
         st.error(f"❌ Could not read CSV ({name}): {e}")
         return None
 
-# ---------------- Kaggle API Setup ----------------
+# ---------------- Kaggle API Setup with Local Storage ----------------
 @st.cache_resource
 def get_kaggle_api(kaggle_json_content=None):
+    kaggle_path = Path.home() / ".kaggle"
+    kaggle_path.mkdir(exist_ok=True)
+    
     if kaggle_json_content:
-        token = json.loads(kaggle_json_content.decode())
-        os.environ["KAGGLE_USERNAME"] = token["username"]
-        os.environ["KAGGLE_KEY"] = token["key"]
+        kaggle_file = kaggle_path / "kaggle.json"
+        with open(kaggle_file, "wb") as f:
+            f.write(kaggle_json_content)
+        os.chmod(kaggle_file, 0o600)
+        st.success("✅ kaggle.json saved locally")
+
     api = KaggleApi()
     api.authenticate()
     return api
@@ -182,15 +186,10 @@ with tab3:
         placeholder="heptapod/titanic"
     )
     selected_csv = None
-    kaggle_file_uploaded = st.file_uploader(
-        "Upload kaggle.json token for server deployment",
-        type=["json"],
-        label_visibility="collapsed"
-    )
 
-    if kaggle_dataset_name and kaggle_file_uploaded:
+    if kaggle_dataset_name:
         try:
-            api = get_kaggle_api(kaggle_file_uploaded.read())
+            api = get_kaggle_api()  # use local kaggle.json if already saved
             kaggle_csv_files = download_kaggle_csvs(api, kaggle_dataset_name)
             selected_csv = st.selectbox("Select CSV to analyze", list(kaggle_csv_files.keys()))
             if selected_csv:
@@ -198,6 +197,20 @@ with tab3:
                 input_name = Path(selected_csv).stem
         except Exception as e:
             st.error(f"Kaggle download failed: {e}")
+
+# ---- Kaggle Token Upload ----
+with tab4:
+    st.markdown('<div class="info-text">Upload your kaggle.json (only once, it will be saved locally)</div>', unsafe_allow_html=True)
+    kaggle_file_uploaded = st.file_uploader(
+        "Upload kaggle.json token",
+        type=["json"],
+        label_visibility="collapsed"
+    )
+    if kaggle_file_uploaded:
+        try:
+            get_kaggle_api(kaggle_file_uploaded.read())
+        except Exception as e:
+            st.error(f"Kaggle API setup failed: {e}")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -221,13 +234,11 @@ if df is not None:
                 profile.to_file(tmp.name)
                 html_path = tmp.name
 
-        # Gradient themed EDA card
         st.markdown('<div class="eda-card">', unsafe_allow_html=True)
         st.markdown(f"## 📈 {input_name} EDA Report Preview")
         with open(html_path, "r", encoding="utf-8") as f:
             st.components.v1.html(f.read(), height=1000, scrolling=True)
 
-        # Download button with gradient theme
         with open(html_path, "rb") as f:
             st.download_button(
                 "⬇️ Download HTML Report",
@@ -237,7 +248,7 @@ if df is not None:
             )
         st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- Footer ----------------
+# ---------------- Footer with Contact Info ----------------
 st.markdown("""
 <hr style="border:1px solid #444444">
 <div style="text-align:center; color:#ffffff; font-size:0.9rem; margin-top:10px;">
@@ -245,4 +256,3 @@ st.markdown("""
 📧 Contact: 2020tanvir1971@gmail.com | 🌐 Website: https://yourwebsite.com | 📱 Phone: +88 0173837737
 </div>
 """, unsafe_allow_html=True)
-
