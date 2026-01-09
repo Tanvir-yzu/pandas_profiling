@@ -16,6 +16,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ---------------- Sidebar Navigation ----------------
+page = st.sidebar.radio(
+    "📌 Navigation",
+    ["📊 Auto EDA App", "📘 Kaggle Token Doc"]
+)
+
+
 # ---------------- Custom CSS for Black BG & Colorful UI ----------------
 st.markdown("""
 <style>
@@ -87,172 +94,249 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- Header ----------------
-st.markdown('<div class="main-title">📊 Auto EDA Generator</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Upload CSV/Excel/JSON/TXT, paste URL, or load Kaggle datasets</div>', unsafe_allow_html=True)
+# ====================================================
+# 📘 API DOCUMENTATION PAGE
+# ====================================================
+if page == "📘 API Documentation":
 
-# ---------------- Safe file loader ----------------
-def load_file(file):
-    try:
-        if file.name.endswith(".csv") or file.name.endswith(".txt"):
-            return pd.read_csv(file)
-        elif file.name.endswith(".xlsx") or file.name.endswith(".xls"):
+    st.markdown('<div class="main-title">📘 API Documentation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">Auto EDA Generator – Usage Guide & Integration</div>', unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="card">
+
+    ## 🚀 Overview
+    The **Auto EDA Generator** automatically creates an exploratory data analysis (EDA)
+    HTML report from structured datasets.
+
+    Supported sources:
+    - File Upload (CSV, Excel, JSON, TXT)
+    - CSV URL
+    - Kaggle Datasets (with kaggle.json)
+
+    ---
+
+    ## 📂 Supported File Formats
+    | Format | Extension |
+    |------|-----------|
+    | CSV | `.csv` |
+    | Excel | `.xlsx`, `.xls` |
+    | JSON | `.json` |
+    | Text | `.txt` |
+
+    ---
+
+    ## 🏆 Kaggle Dataset Usage
+    **Dataset format:**
+    ```
+    owner/dataset-name
+    ```
+    **Example:**
+    ```
+    heptapod/titanic
+    ```
+
+    **Steps:**
+    1. Upload `kaggle.json` once
+    2. It is stored securely in local storage
+    3. Select dataset CSV
+    4. Generate EDA
+
+    ---
+
+    ## 📄 Output
+    - Interactive HTML EDA Report
+    - Downloadable `.html` file
+    - Filename matches input dataset name
+
+    ---
+
+    ## 🔐 Security
+    - `kaggle.json` stored in `~/.kaggle/`
+    - File permissions set to `600`
+    - Cached securely using Streamlit
+
+    ---
+
+    ## 📞 Contact
+    **Developer:** Tanvir  
+    **Email:** 2020tanvir1971@gmail.com  
+    **Phone:** +88 0173837737  
+
+    </div>
+    """, unsafe_allow_html=True)
+
+# ====================================================
+# 📊 MAIN AUTO EDA APP PAGE
+# ====================================================
+else:
+
+        # ---------------- Header ----------------
+        st.markdown('<div class="main-title">📊 Auto EDA Generator</div>', unsafe_allow_html=True)
+        st.markdown('<div class="subtitle">Upload CSV/Excel/JSON/TXT, paste URL, or load Kaggle datasets</div>', unsafe_allow_html=True)
+
+        # ---------------- Safe file loader ----------------
+        def load_file(file):
             try:
-                import openpyxl
-                return pd.read_excel(file)
-            except ModuleNotFoundError:
-                st.error("❌ Excel files require 'openpyxl'. Install it using `pip install openpyxl`")
+                if file.name.endswith(".csv") or file.name.endswith(".txt"):
+                    return pd.read_csv(file)
+                elif file.name.endswith(".xlsx") or file.name.endswith(".xls"):
+                    try:
+                        import openpyxl
+                        return pd.read_excel(file)
+                    except ModuleNotFoundError:
+                        st.error("❌ Excel files require 'openpyxl'. Install it using `pip install openpyxl`")
+                        return None
+                elif file.name.endswith(".json"):
+                    return pd.read_json(file)
+            except Exception as e:
+                st.error(f"❌ Could not read file: {e}")
                 return None
-        elif file.name.endswith(".json"):
-            return pd.read_json(file)
-    except Exception as e:
-        st.error(f"❌ Could not read file: {e}")
-        return None
 
-def load_csv_stringio(string_io, name="dataset"):
-    try:
-        return pd.read_csv(string_io)
-    except Exception as e:
-        st.error(f"❌ Could not read CSV ({name}): {e}")
-        return None
+        def load_csv_stringio(string_io, name="dataset"):
+            try:
+                return pd.read_csv(string_io)
+            except Exception as e:
+                st.error(f"❌ Could not read CSV ({name}): {e}")
+                return None
 
-# ---------------- Kaggle API Setup with Local Storage ----------------
-@st.cache_resource
-def get_kaggle_api(kaggle_json_content=None):
-    kaggle_path = Path.home() / ".kaggle"
-    kaggle_path.mkdir(exist_ok=True)
-    
-    if kaggle_json_content:
-        kaggle_file = kaggle_path / "kaggle.json"
-        with open(kaggle_file, "wb") as f:
-            f.write(kaggle_json_content)
-        os.chmod(kaggle_file, 0o600)
-        st.success("✅ kaggle.json saved locally")
+        # ---------------- Kaggle API Setup with Local Storage ----------------
+        @st.cache_resource
+        def get_kaggle_api(kaggle_json_content=None):
+            kaggle_path = Path.home() / ".kaggle"
+            kaggle_path.mkdir(exist_ok=True)
+            
+            if kaggle_json_content:
+                kaggle_file = kaggle_path / "kaggle.json"
+                with open(kaggle_file, "wb") as f:
+                    f.write(kaggle_json_content)
+                os.chmod(kaggle_file, 0o600)
+                st.success("✅ kaggle.json saved locally")
 
-    api = KaggleApi()
-    api.authenticate()
-    return api
+            api = KaggleApi()
+            api.authenticate()
+            return api
 
-# ---------------- Cached Kaggle Dataset Download ----------------
-@st.cache_data(show_spinner=False, max_entries=10)
-def download_kaggle_csvs(_api, dataset_name):
-    temp_dir = tempfile.mkdtemp()
-    _api.dataset_download_files(dataset_name, path=temp_dir, unzip=True)
-    csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
-    if not csv_files:
-        raise Exception("No CSV file found in Kaggle dataset")
-    return {f: os.path.join(temp_dir, f) for f in csv_files}
+        # ---------------- Cached Kaggle Dataset Download ----------------
+        @st.cache_data(show_spinner=False, max_entries=10)
+        def download_kaggle_csvs(_api, dataset_name):
+            temp_dir = tempfile.mkdtemp()
+            _api.dataset_download_files(dataset_name, path=temp_dir, unzip=True)
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            if not csv_files:
+                raise Exception("No CSV file found in Kaggle dataset")
+            return {f: os.path.join(temp_dir, f) for f in csv_files}
 
-# ---------------- Input Section ----------------
-st.markdown('<div class="card">', unsafe_allow_html=True)
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["📁 Upload File", "🌐 CSV URL", "🏆 Kaggle Dataset", "🔐 Kaggle Token"]
-)
+        # ---------------- Input Section ----------------
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ["📁 Upload File", "🌐 CSV URL", "🏆 Kaggle Dataset", "🔐 Kaggle Token"]
+        )
 
-df = None
-input_name = "dataset"
+        df = None
+        input_name = "dataset"
 
-# ---- File Upload ----
-with tab1:
-    st.markdown('<div class="upload-box">⬇️ Drag & Drop your file here</div>', unsafe_allow_html=True)
-    st.markdown('<div class="info-text">Supported formats: CSV (.csv), Excel (.xlsx, .xls), JSON (.json), TXT (.txt)</div>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader(
-        "Upload your file",
-        type=["csv", "xlsx", "xls", "json", "txt"],
-        label_visibility="collapsed"
-    )
-    if uploaded_file:
-        input_name = Path(uploaded_file.name).stem
-        df = load_file(uploaded_file)
-
-# ---- CSV URL ----
-with tab2:
-    st.markdown('<div class="info-text">Enter a direct CSV URL. Supported format: CSV (.csv)</div>', unsafe_allow_html=True)
-    csv_url = st.text_input("Paste direct CSV URL")
-    if csv_url:
-        input_name = Path(csv_url).stem
-        try:
-            response = requests.get(csv_url)
-            response.raise_for_status()
-            df = load_csv_stringio(StringIO(response.text), csv_url)
-        except Exception as e:
-            st.error(f"❌ Failed to load CSV from URL: {e}")
-
-# ---- Kaggle Dataset ----
-with tab3:
-    st.markdown('<div class="info-text">Enter Kaggle dataset in the format <owner/dataset-name></div>', unsafe_allow_html=True)
-    kaggle_dataset_name = st.text_input(
-        "Enter Kaggle dataset name (owner/dataset-name)",
-        placeholder="heptapod/titanic"
-    )
-    selected_csv = None
-
-    if kaggle_dataset_name:
-        try:
-            api = get_kaggle_api()  # use local kaggle.json if already saved
-            kaggle_csv_files = download_kaggle_csvs(api, kaggle_dataset_name)
-            selected_csv = st.selectbox("Select CSV to analyze", list(kaggle_csv_files.keys()))
-            if selected_csv:
-                df = load_file(open(kaggle_csv_files[selected_csv], "rb"))
-                input_name = Path(selected_csv).stem
-        except Exception as e:
-            st.error(f"Kaggle download failed: {e}")
-
-# ---- Kaggle Token Upload ----
-with tab4:
-    st.markdown('<div class="info-text">Upload your kaggle.json (only once, it will be saved locally)</div>', unsafe_allow_html=True)
-    kaggle_file_uploaded = st.file_uploader(
-        "Upload kaggle.json token",
-        type=["json"],
-        label_visibility="collapsed"
-    )
-    if kaggle_file_uploaded:
-        try:
-            get_kaggle_api(kaggle_file_uploaded.read())
-        except Exception as e:
-            st.error(f"Kaggle API setup failed: {e}")
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ---------------- Data Preview & EDA ----------------
-if df is not None:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.success("✅ Dataset Loaded Successfully")
-    st.markdown(f"#### 👀 {input_name} Preview")
-    st.dataframe(df.head(10), use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        generate = st.button("🚀 Generate EDA Report", use_container_width=True)
-
-    if generate:
-        with st.spinner("🔍 Generating EDA report..."):
-            profile = ProfileReport(df, title=f"{input_name} EDA Report", explorative=True)
-            report_name = f"{input_name}_eda.html"
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
-                profile.to_file(tmp.name)
-                html_path = tmp.name
-
-        st.markdown('<div class="eda-card">', unsafe_allow_html=True)
-        st.markdown(f"## 📈 {input_name} EDA Report Preview")
-        with open(html_path, "r", encoding="utf-8") as f:
-            st.components.v1.html(f.read(), height=1000, scrolling=True)
-
-        with open(html_path, "rb") as f:
-            st.download_button(
-                "⬇️ Download HTML Report",
-                f,
-                file_name=report_name,
-                mime="text/html"
+        # ---- File Upload ----
+        with tab1:
+            st.markdown('<div class="upload-box">⬇️ Drag & Drop your file here</div>', unsafe_allow_html=True)
+            st.markdown('<div class="info-text">Supported formats: CSV (.csv), Excel (.xlsx, .xls), JSON (.json), TXT (.txt)</div>', unsafe_allow_html=True)
+            uploaded_file = st.file_uploader(
+                "Upload your file",
+                type=["csv", "xlsx", "xls", "json", "txt"],
+                label_visibility="collapsed"
             )
+            if uploaded_file:
+                input_name = Path(uploaded_file.name).stem
+                df = load_file(uploaded_file)
+
+        # ---- CSV URL ----
+        with tab2:
+            st.markdown('<div class="info-text">Enter a direct CSV URL. Supported format: CSV (.csv)</div>', unsafe_allow_html=True)
+            csv_url = st.text_input("Paste direct CSV URL")
+            if csv_url:
+                input_name = Path(csv_url).stem
+                try:
+                    response = requests.get(csv_url)
+                    response.raise_for_status()
+                    df = load_csv_stringio(StringIO(response.text), csv_url)
+                except Exception as e:
+                    st.error(f"❌ Failed to load CSV from URL: {e}")
+
+        # ---- Kaggle Dataset ----
+        with tab3:
+            st.markdown('<div class="info-text">Enter Kaggle dataset in the format <owner/dataset-name></div>', unsafe_allow_html=True)
+            kaggle_dataset_name = st.text_input(
+                "Enter Kaggle dataset name (owner/dataset-name)",
+                placeholder="heptapod/titanic"
+            )
+            selected_csv = None
+
+            if kaggle_dataset_name:
+                try:
+                    api = get_kaggle_api()  # use local kaggle.json if already saved
+                    kaggle_csv_files = download_kaggle_csvs(api, kaggle_dataset_name)
+                    selected_csv = st.selectbox("Select CSV to analyze", list(kaggle_csv_files.keys()))
+                    if selected_csv:
+                        df = load_file(open(kaggle_csv_files[selected_csv], "rb"))
+                        input_name = Path(selected_csv).stem
+                except Exception as e:
+                    st.error(f"Kaggle download failed: {e}")
+
+        # ---- Kaggle Token Upload ----
+        with tab4:
+            st.markdown('<div class="info-text">Upload your kaggle.json (only once, it will be saved locally)</div>', unsafe_allow_html=True)
+            kaggle_file_uploaded = st.file_uploader(
+                "Upload kaggle.json token",
+                type=["json"],
+                label_visibility="collapsed"
+            )
+            if kaggle_file_uploaded:
+                try:
+                    get_kaggle_api(kaggle_file_uploaded.read())
+                except Exception as e:
+                    st.error(f"Kaggle API setup failed: {e}")
+
         st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- Footer with Contact Info ----------------
-st.markdown("""
-<hr style="border:1px solid #444444">
-<div style="text-align:center; color:#ffffff; font-size:0.9rem; margin-top:10px;">
-⚡ Built with Streamlit • ydata-profiling • Kaggle API • Black Background & Gradient UI • Safe File Loader <br>
-📧 Contact: 2020tanvir1971@gmail.com | 🌐 Website: https://yourwebsite.com | 📱 Phone: +88 0173837737
-</div>
-""", unsafe_allow_html=True)
+        # ---------------- Data Preview & EDA ----------------
+        if df is not None:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.success("✅ Dataset Loaded Successfully")
+            st.markdown(f"#### 👀 {input_name} Preview")
+            st.dataframe(df.head(10), use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            col1, col2, col3 = st.columns([1,2,1])
+            with col2:
+                generate = st.button("🚀 Generate EDA Report", use_container_width=True)
+
+            if generate:
+                with st.spinner("🔍 Generating EDA report..."):
+                    profile = ProfileReport(df, title=f"{input_name} EDA Report", explorative=True)
+                    report_name = f"{input_name}_eda.html"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
+                        profile.to_file(tmp.name)
+                        html_path = tmp.name
+
+                st.markdown('<div class="eda-card">', unsafe_allow_html=True)
+                st.markdown(f"## 📈 {input_name} EDA Report Preview")
+                with open(html_path, "r", encoding="utf-8") as f:
+                    st.components.v1.html(f.read(), height=1000, scrolling=True)
+
+                with open(html_path, "rb") as f:
+                    st.download_button(
+                        "⬇️ Download HTML Report",
+                        f,
+                        file_name=report_name,
+                        mime="text/html"
+                    )
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        # ---------------- Footer with Contact Info ----------------
+        st.markdown("""
+        <hr style="border:1px solid #444444">
+        <div style="text-align:center; color:#ffffff; font-size:0.9rem; margin-top:10px;">
+        ⚡ Built with Streamlit • ydata-profiling • Kaggle API • Black Background & Gradient UI • Safe File Loader <br>
+        📧 Contact: 2020tanvir1971@gmail.com | 🌐 Website: https://yourwebsite.com | 📱 Phone: +88 0173837737
+        </div>
+        """, unsafe_allow_html=True)
