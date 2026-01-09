@@ -5,6 +5,7 @@ from io import StringIO
 import requests
 import tempfile
 import os
+import json
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 # ---------------- Page Config ----------------
@@ -29,19 +30,17 @@ st.markdown("""
 st.markdown('<div class="main-title">📊 Auto EDA Generator</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Upload CSV/Excel/JSON/TXT, paste URL, or load Kaggle datasets</div>', unsafe_allow_html=True)
 
-# ---------------- Cached Kaggle API Setup ----------------
-@st.cache_resource(show_spinner=False)
-def setup_kaggle_api(kaggle_json_content=None):
-    kaggle_dir = os.path.join(os.path.expanduser("~"), ".kaggle")
-    os.makedirs(kaggle_dir, exist_ok=True)
-    kaggle_path = os.path.join(kaggle_dir, "kaggle.json")
+# ---------------- Kaggle API Setup with Environment Variables ----------------
+@st.cache_resource
+def get_kaggle_api(kaggle_json_content=None):
+    """
+    Returns authenticated KaggleApi object.
+    If kaggle_json_content is provided, sets environment variables for server deployment.
+    """
     if kaggle_json_content:
-        with open(kaggle_path, "wb") as f:
-            f.write(kaggle_json_content)
-        try:
-            os.chmod(kaggle_path, 0o600)
-        except:
-            pass
+        token = json.loads(kaggle_json_content.decode())
+        os.environ["KAGGLE_USERNAME"] = token["username"]
+        os.environ["KAGGLE_KEY"] = token["key"]
     api = KaggleApi()
     api.authenticate()
     return api
@@ -50,8 +49,9 @@ def setup_kaggle_api(kaggle_json_content=None):
 @st.cache_data(show_spinner=False, max_entries=10)
 def download_kaggle_csvs(_api, dataset_name):
     """
-    Returns dict {filename: full_path} of CSVs in Kaggle dataset.
-    Leading underscore tells Streamlit not to hash _api object.
+    Downloads Kaggle dataset CSVs to a temp folder.
+    Returns dict {filename: full_path}.
+    _api: prefixed with _ to avoid Streamlit hashing issues.
     """
     temp_dir = tempfile.mkdtemp()
     _api.dataset_download_files(dataset_name, path=temp_dir, unzip=True)
@@ -108,31 +108,24 @@ with tab3:
         placeholder="heptapod/titanic"
     )
     selected_csv = None
-    if kaggle_dataset_name:
+    kaggle_file_uploaded = None
+
+    # Upload Kaggle API token first (server-safe)
+    kaggle_file_uploaded = st.file_uploader(
+        "Upload kaggle.json token for server deployment",
+        type=["json"],
+        label_visibility="collapsed"
+    )
+
+    if kaggle_dataset_name and kaggle_file_uploaded:
         try:
-            # Use cached Kaggle API if token uploaded
-            api = setup_kaggle_api()
+            api = get_kaggle_api(kaggle_file_uploaded.read())
             kaggle_csv_files = download_kaggle_csvs(api, kaggle_dataset_name)
             selected_csv = st.selectbox("Select CSV to analyze", list(kaggle_csv_files.keys()))
             if selected_csv:
                 df = pd.read_csv(kaggle_csv_files[selected_csv])
         except Exception as e:
-            st.error(f"❌ {e}")
-
-# ---- Kaggle Token Upload ----
-with tab4:
-    st.markdown('<div class="info-text">Upload your Kaggle API token (kaggle.json). You can download it from your Kaggle account.</div>', unsafe_allow_html=True)
-    kaggle_file = st.file_uploader(
-        "Upload your kaggle.json file",
-        type=["json"],
-        label_visibility="collapsed"
-    )
-    if kaggle_file:
-        try:
-            setup_kaggle_api(kaggle_file.read())
-            st.success("✅ Kaggle API token configured and cached successfully!")
-        except:
-            st.error("❌ Invalid kaggle.json file")
+            st.error(f"Kaggle download failed: {e}")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -171,4 +164,4 @@ if df is not None:
 
 # ---------------- Footer ----------------
 st.markdown("---")
-st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API • Cached datasets")
+st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API • Server-ready & Cached")
