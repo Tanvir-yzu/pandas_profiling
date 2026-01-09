@@ -5,7 +5,6 @@ from io import StringIO
 import requests
 import tempfile
 import os
-import json
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 # ---------------- Page Config ----------------
@@ -18,95 +17,80 @@ st.set_page_config(
 # ---------------- Custom CSS ----------------
 st.markdown("""
 <style>
-.main-title {
-    font-size: 2.8rem;
-    font-weight: 700;
-}
-.subtitle {
-    font-size: 1.1rem;
-    color: #6c757d;
-    margin-bottom: 2rem;
-}
-.card {
-    background: rgba(255,255,255,0.04);
-    border-radius: 14px;
-    padding: 25px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
-.upload-box {
-    border: 2px dashed #4CAF50;
-    border-radius: 14px;
-    padding: 30px;
-    text-align: center;
-    font-size: 1.1rem;
-    color: #4CAF50;
-}
+.main-title {font-size: 2.8rem; font-weight: 700;}
+.subtitle {font-size: 1.1rem; color: #6c757d; margin-bottom: 2rem;}
+.card {background: rgba(255,255,255,0.04); border-radius: 14px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;}
+.upload-box {border: 2px dashed #4CAF50; border-radius: 14px; padding: 30px; text-align: center; font-size: 1.1rem; color: #4CAF50;}
+.info-text {font-size: 0.95rem; color: #555; margin-bottom: 10px;}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- Header ----------------
 st.markdown('<div class="main-title">📊 Auto EDA Generator</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="subtitle">Upload CSV, use URL, or load Kaggle datasets using kaggle.json</div>',
-    unsafe_allow_html=True
-)
+st.markdown('<div class="subtitle">Upload CSV/Excel/JSON/TXT, paste URL, or load Kaggle datasets</div>', unsafe_allow_html=True)
 
-# ---------------- Kaggle Auth via UI ----------------
-def setup_kaggle_from_upload(uploaded_kaggle_file):
+# ---------------- Cached Kaggle API Setup ----------------
+@st.cache_resource(show_spinner=False)
+def setup_kaggle_api(kaggle_json_content=None):
     kaggle_dir = os.path.join(os.path.expanduser("~"), ".kaggle")
     os.makedirs(kaggle_dir, exist_ok=True)
-
     kaggle_path = os.path.join(kaggle_dir, "kaggle.json")
-
-    with open(kaggle_path, "wb") as f:
-        f.write(uploaded_kaggle_file.read())
-
-    # Set permissions (important for Kaggle)
-    try:
-        os.chmod(kaggle_path, 0o600)
-    except:
-        pass
-
-    return True
-
-# ---------------- Kaggle Loader ----------------
-def load_kaggle_dataset(dataset_name):
+    if kaggle_json_content:
+        with open(kaggle_path, "wb") as f:
+            f.write(kaggle_json_content)
+        try:
+            os.chmod(kaggle_path, 0o600)
+        except:
+            pass
     api = KaggleApi()
     api.authenticate()
+    return api
 
+# ---------------- Cached Kaggle Dataset Download ----------------
+@st.cache_data(show_spinner=False, max_entries=10)
+def download_kaggle_csvs(_api, dataset_name):
+    """
+    Returns dict {filename: full_path} of CSVs in Kaggle dataset.
+    Leading underscore tells Streamlit not to hash _api object.
+    """
     temp_dir = tempfile.mkdtemp()
-    api.dataset_download_files(
-        dataset_name,
-        path=temp_dir,
-        unzip=True
-    )
-
+    _api.dataset_download_files(dataset_name, path=temp_dir, unzip=True)
     csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
-
     if not csv_files:
         raise Exception("No CSV file found in Kaggle dataset")
-
-    return pd.read_csv(os.path.join(temp_dir, csv_files[0]))
+    return {f: os.path.join(temp_dir, f) for f in csv_files}
 
 # ---------------- Input Section ----------------
 st.markdown('<div class="card">', unsafe_allow_html=True)
-
 tab1, tab2, tab3, tab4 = st.tabs(
-    ["📁 Upload CSV", "🌐 CSV URL", "🏆 Kaggle Dataset", "🔐 Kaggle Token"]
+    ["📁 Upload File", "🌐 CSV URL", "🏆 Kaggle Dataset", "🔐 Kaggle Token"]
 )
 
 df = None
 
-# ---- Upload CSV ----
+# ---- File Upload ----
 with tab1:
-    st.markdown('<div class="upload-box">⬇️ Drag & Drop CSV file here</div>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("", type=["csv"])
+    st.markdown('<div class="upload-box">⬇️ Drag & Drop your file here</div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-text">Supported formats: CSV (.csv), Excel (.xlsx, .xls), JSON (.json), TXT (.txt)</div>', unsafe_allow_html=True)
+    uploaded_file = st.file_uploader(
+        "Upload your file",
+        type=["csv", "xlsx", "xls", "json", "txt"],
+        label_visibility="collapsed"
+    )
     if uploaded_file:
-        df = pd.read_csv(uploaded_file)
+        try:
+            if uploaded_file.name.endswith(".csv") or uploaded_file.name.endswith(".txt"):
+                df = pd.read_csv(uploaded_file)
+            elif uploaded_file.name.endswith(".xlsx") or uploaded_file.name.endswith(".xls"):
+                df = pd.read_excel(uploaded_file)
+            elif uploaded_file.name.endswith(".json"):
+                df = pd.read_json(uploaded_file)
+        except Exception as e:
+            st.error(f"❌ Could not read file: {e}")
 
 # ---- CSV URL ----
 with tab2:
+    st.markdown('<div class="info-text">Enter a direct CSV URL. Supported format: CSV (.csv)</div>', unsafe_allow_html=True)
     csv_url = st.text_input("Paste direct CSV URL")
     if csv_url:
         try:
@@ -118,28 +102,35 @@ with tab2:
 
 # ---- Kaggle Dataset ----
 with tab3:
-    kaggle_dataset = st.text_input(
+    st.markdown('<div class="info-text">Enter Kaggle dataset in the format <owner/dataset-name>. Example: heptapod/titanic</div>', unsafe_allow_html=True)
+    kaggle_dataset_name = st.text_input(
         "Enter Kaggle dataset name (owner/dataset-name)",
         placeholder="heptapod/titanic"
     )
-    if kaggle_dataset:
+    selected_csv = None
+    if kaggle_dataset_name:
         try:
-            df = load_kaggle_dataset(kaggle_dataset)
+            # Use cached Kaggle API if token uploaded
+            api = setup_kaggle_api()
+            kaggle_csv_files = download_kaggle_csvs(api, kaggle_dataset_name)
+            selected_csv = st.selectbox("Select CSV to analyze", list(kaggle_csv_files.keys()))
+            if selected_csv:
+                df = pd.read_csv(kaggle_csv_files[selected_csv])
         except Exception as e:
             st.error(f"❌ {e}")
 
 # ---- Kaggle Token Upload ----
 with tab4:
-    st.markdown("### Upload kaggle.json")
+    st.markdown('<div class="info-text">Upload your Kaggle API token (kaggle.json). You can download it from your Kaggle account.</div>', unsafe_allow_html=True)
     kaggle_file = st.file_uploader(
         "Upload your kaggle.json file",
-        type=["json"]
+        type=["json"],
+        label_visibility="collapsed"
     )
-
     if kaggle_file:
         try:
-            setup_kaggle_from_upload(kaggle_file)
-            st.success("✅ Kaggle API token configured successfully!")
+            setup_kaggle_api(kaggle_file.read())
+            st.success("✅ Kaggle API token configured and cached successfully!")
         except:
             st.error("❌ Invalid kaggle.json file")
 
@@ -153,25 +144,19 @@ if df is not None:
     st.dataframe(df.head(), use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         generate = st.button("🚀 Generate EDA Report", use_container_width=True)
 
     if generate:
         with st.spinner("🔍 Generating EDA report..."):
-            profile = ProfileReport(
-                df,
-                title="Auto EDA Report",
-                explorative=True
-            )
-
+            profile = ProfileReport(df, title="Auto EDA Report", explorative=True)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
                 profile.to_file(tmp.name)
                 html_path = tmp.name
 
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown("## 📈 EDA Report")
-
         with open(html_path, "r", encoding="utf-8") as f:
             st.components.v1.html(f.read(), height=1000, scrolling=True)
 
@@ -182,9 +167,8 @@ if df is not None:
                 file_name="eda_report.html",
                 mime="text/html"
             )
-
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------- Footer ----------------
 st.markdown("---")
-st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API")
+st.caption("⚡ Built with Streamlit • ydata-profiling • Kaggle API • Cached datasets")
