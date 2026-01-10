@@ -490,6 +490,23 @@ else:
 
                         st.success(f"✅ Found {len(csv_names)} CSV file(s)")
                         
+                        # Create file_info for Kaggle dataset files
+                        file_info = []
+                        for csv_name in csv_names:
+                            # Load each file temporarily to get its info
+                            temp_df = load_file(open(kaggle_csv_files[csv_name], "rb"))
+                            if temp_df is not None:
+                                file_info.append({
+                                    "name": csv_name,
+                                    "rows": len(temp_df),
+                                    "cols": len(temp_df.columns),
+                                    "type": "Kaggle CSV"
+                                })
+                        
+                        # Show file summary
+                        st.markdown("### 📋 Dataset Files Summary")
+                        st.dataframe(pd.DataFrame(file_info), use_container_width=True)
+                        
 
                         # ---------- Handling mode ----------
                         mode = st.radio(
