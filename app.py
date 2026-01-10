@@ -11,7 +11,7 @@ from pathlib import Path
 
 # ---------------- Page Config ----------------
 st.set_page_config(
-    page_title="Auto EDA Generator",
+    page_title="AI/ML DataSets EDA Generator",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -19,7 +19,7 @@ st.set_page_config(
 # ---------------- Sidebar Navigation ----------------
 page = st.sidebar.radio(
     "📌 Navigation",
-    ["📊 Auto EDA App", "📘 Kaggle Token Doc"]
+    ["📊 AI/ML DataSets EDA", "📘 Kaggle Token Doc"]
 )
 
 
@@ -100,13 +100,13 @@ footer {visibility: hidden;}
 if page == "📘 Kaggle Token Doc":
 
     st.markdown('<div class="main-title">📘 Kaggle Token Documentation</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle">Auto EDA Generator – Usage Guide & Integration</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">AI/ML DataSets EDA Generator – Usage Guide & Integration</div>', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="card">
     🚀 Overview
 
-    The **Auto EDA Generator** automatically creates an **Exploratory Data Analysis (EDA) HTML report** from structured datasets with no manual coding required.
+    The **AI/ML DataSets EDA Generator** automatically creates an **Exploratory Data Analysis (EDA) HTML report** from structured datasets with no manual coding required.
 
     ---
 
@@ -209,7 +209,7 @@ if page == "📘 Kaggle Token Doc":
 else:
 
         # ---------------- Header ----------------
-        st.markdown('<div class="main-title">📊 Auto EDA Generator</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-title">📊 AI/ML DataSets EDA Generator</div>', unsafe_allow_html=True)
         st.markdown('<div class="subtitle">Upload CSV/Excel/JSON/TXT, paste URL, or load Kaggle datasets</div>', unsafe_allow_html=True)
 
         # ---------------- Safe file loader ----------------
