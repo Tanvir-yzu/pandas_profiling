@@ -349,24 +349,97 @@ else:
 
 
         # ---- Kaggle Dataset ----
-        with tab3:
-            st.markdown('<div class="info-text">Enter Kaggle dataset in the format <owner/dataset-name></div>', unsafe_allow_html=True)
-            kaggle_dataset_name = st.text_input(
-                "Enter Kaggle dataset name (owner/dataset-name)",
-                placeholder="heptapod/titanic"
-            )
-            selected_csv = None
+            with tab3:
+                st.markdown(
+                    '<div class="info-text">'
+                    'Enter Kaggle dataset in the format <owner/dataset-name>. '
+                    'Supports datasets with multiple CSV files.'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
 
-            if kaggle_dataset_name:
-                try:
-                    api = get_kaggle_api()  # use local kaggle.json if already saved
-                    kaggle_csv_files = download_kaggle_csvs(api, kaggle_dataset_name)
-                    selected_csv = st.selectbox("Select CSV to analyze", list(kaggle_csv_files.keys()))
-                    if selected_csv:
-                        df = load_file(open(kaggle_csv_files[selected_csv], "rb"))
-                        input_name = Path(selected_csv).stem
-                except Exception as e:
-                    st.error(f"Kaggle download failed: {e}")
+                kaggle_dataset_name = st.text_input(
+                    "Enter Kaggle dataset name (owner/dataset-name)",
+                    placeholder="heptapod/titanic"
+                )
+
+                if kaggle_dataset_name:
+                    try:
+                        api = get_kaggle_api()  # uses locally saved kaggle.json
+                        kaggle_csv_files = download_kaggle_csvs(api, kaggle_dataset_name)
+
+                        csv_names = list(kaggle_csv_files.keys())
+
+                        st.success(f"✅ Found {len(csv_names)} CSV file(s)")
+
+                        # ---------- Handling mode ----------
+                        mode = st.radio(
+                            "How would you like to handle the CSV files?",
+                            [
+                                "📄 Analyze a single CSV",
+                                "🧩 Merge all CSVs (row-wise)",
+                                "📊 Generate EDA for each CSV separately"
+                            ]
+                        )
+
+                        # ---------- Option 1: Single CSV ----------
+                        if mode == "📄 Analyze a single CSV":
+                            selected_csv = st.selectbox("Select CSV to analyze", csv_names)
+                            if selected_csv:
+                                df = load_file(open(kaggle_csv_files[selected_csv], "rb"))
+                                input_name = Path(selected_csv).stem
+
+                        # ---------- Option 2: Merge all CSVs ----------
+                        elif mode == "🧩 Merge all CSVs (row-wise)":
+                            dfs = []
+                            for csv_file in csv_names:
+                                temp_df = load_file(open(kaggle_csv_files[csv_file], "rb"))
+                                if temp_df is not None:
+                                    temp_df["__source_file__"] = csv_file
+                                    dfs.append(temp_df)
+
+                            if dfs:
+                                df = pd.concat(dfs, ignore_index=True)
+                                input_name = kaggle_dataset_name.replace("/", "_") + "_merged"
+                                st.success("✅ All CSV files merged successfully")
+
+                        # ---------- Option 3: Multi-EDA ----------
+                        elif mode == "📊 Generate EDA for each CSV separately":
+                            selected_csvs = st.multiselect(
+                                "Select one or more CSV files",
+                                csv_names,
+                                default=csv_names
+                            )
+
+                            if selected_csvs:
+                                st.info("ℹ️ EDA reports will be generated one by one")
+
+                                for csv_file in selected_csvs:
+                                    temp_df = load_file(open(kaggle_csv_files[csv_file], "rb"))
+                                    if temp_df is not None:
+                                        st.markdown(f"### 📈 EDA for `{csv_file}`")
+                                        profile = ProfileReport(
+                                            temp_df,
+                                            title=f"{csv_file} EDA Report",
+                                            explorative=True
+                                        )
+                                        with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
+                                            profile.to_file(tmp.name)
+
+                                        with open(tmp.name, "r", encoding="utf-8") as f:
+                                            st.components.v1.html(f.read(), height=600, scrolling=True)
+
+                                        with open(tmp.name, "rb") as f:
+                                            st.download_button(
+                                                f"⬇️ Download {csv_file} EDA",
+                                                f,
+                                                file_name=f"{Path(csv_file).stem}_eda.html",
+                                                mime="text/html"
+                                            )
+
+                    except Exception as e:
+                        st.error(f"Kaggle download failed: {e}")
+
 
         # ---- Kaggle Token Upload ----
         with tab4:
