@@ -578,20 +578,33 @@ else:
 
 
         # ---- Kaggle Token Upload ----
-        with tab4:
-            st.markdown('<div class="info-text">Upload your kaggle.json (only once, it will be saved locally)</div>', unsafe_allow_html=True)
-            kaggle_file_uploaded = st.file_uploader(
-                "Upload kaggle.json token",
-                type=["json"],
-                label_visibility="collapsed"
-            )
-            if kaggle_file_uploaded:
-                try:
-                    get_kaggle_api(kaggle_file_uploaded.read())
-                except Exception as e:
-                    st.error(f"Kaggle API setup failed: {e}")
-
-        st.markdown('</div>', unsafe_allow_html=True)
+        # ---- Kaggle Token Upload ----
+                with tab4:
+                    st.markdown('<div class="info-text">Upload your kaggle.json (only once, it will be saved locally)</div>', unsafe_allow_html=True)
+                    
+                    # Initialize reauth checkbox
+                    reauth = st.checkbox("Re-authenticate Kaggle API")
+                    
+                    # File uploader
+                    kaggle_file_uploaded = st.file_uploader(
+                        "Upload kaggle.json token",
+                        type=["json"],
+                        label_visibility="collapsed"
+                    )
+                    
+                    # Handle authentication
+                    if kaggle_file_uploaded or reauth:
+                        try:
+                            get_kaggle_api(kaggle_file_uploaded.read() if kaggle_file_uploaded else None)
+                            st.success("✅ Kaggle API authenticated!")
+                        except Exception as e:
+                            st.error(f"Kaggle API setup failed: {e}")
+                    
+                    # Check if token already exists
+                    kaggle_path = Path.home() / ".kaggle"
+                    kaggle_file = kaggle_path / "kaggle.json"
+                    if kaggle_file.exists():
+                        st.info("🔑 Kaggle token is already configured.")
 
         # ---------------- Data Preview & EDA ----------------
         if df is not None:
