@@ -274,17 +274,106 @@ else:
         input_name = "dataset"
 
         # ---- File Upload ----
+        # ---- File Upload ----
         with tab1:
-            st.markdown('<div class="upload-box">⬇️ Drag & Drop your file here</div>', unsafe_allow_html=True)
-            st.markdown('<div class="info-text">Supported formats: CSV (.csv), Excel (.xlsx, .xls), JSON (.json), TXT (.txt)</div>', unsafe_allow_html=True)
-            uploaded_file = st.file_uploader(
-                "Upload your file",
+            st.markdown('<div class="upload-box">⬇️ Drag & Drop multiple files here</div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="info-text">'
+                'Supported formats: CSV (.csv), Excel (.xlsx, .xls), JSON (.json), TXT (.txt)<br>'
+                'You can upload multiple files at once.'
+                '</div>',
+                unsafe_allow_html=True
+            )
+
+            uploaded_files = st.file_uploader(
+                "Upload your file(s)",
                 type=["csv", "xlsx", "xls", "json", "txt"],
+                accept_multiple_files=True,
                 label_visibility="collapsed"
             )
-            if uploaded_file:
-                input_name = Path(uploaded_file.name).stem
-                df = load_file(uploaded_file)
+
+            if uploaded_files:
+                # Group loaded dataframes by type
+                csv_dfs = []
+                other_dfs = []  # For Excel, JSON, TXT
+                file_info = []
+
+                for file in uploaded_files:
+                    df_temp = load_file(file)
+                    if df_temp is not None:
+                        ext = Path(file.name).suffix.lower()
+                        if ext == ".csv":
+                            csv_dfs.append((file.name, df_temp))
+                        else:
+                            other_dfs.append((file.name, df_temp))
+                        file_info.append({
+                            "name": file.name,
+                            "rows": len(df_temp),
+                            "cols": len(df_temp.columns),
+                            "type": ext.upper().lstrip('.')
+                        })
+
+                # Show preview table of uploaded files
+                st.markdown("### 📋 Uploaded Files Summary")
+                st.dataframe(pd.DataFrame(file_info), use_container_width=True)
+
+                # Combine all DataFrames for processing
+                all_dfs = csv_dfs + other_dfs
+                all_names = [name for name, _ in all_dfs]
+
+                if all_dfs:
+                    # Determine handling mode
+                    mode = st.radio(
+                        "How would you like to handle the uploaded files?",
+                        [
+                            "📄 Analyze a single file",
+                            "📊 Generate EDA for each file separately"
+                        ],
+                        key="file_mode"
+                    )
+
+                    # ---------- Option 1: Single File Analysis ----------
+                    if mode == "📄 Analyze a single file":
+                        selected_file = st.selectbox("Select file to analyze", all_names)
+                        if selected_file:
+                            df = dict(all_dfs)[selected_file]
+                            input_name = Path(selected_file).stem
+
+                    # ---------- Option 2: Multiple EDAs ----------
+                    elif mode == "📊 Generate EDA for each file separately":
+                        selected_files = st.multiselect(
+                            "Select one or more files to generate EDA",
+                            all_names,
+                            default=all_names
+                        )
+
+                        if selected_files:
+                            st.info("ℹ️ EDA reports will be generated one by one")
+
+                            for fname in selected_files:
+                                temp_df = dict(all_dfs)[fname]
+                                st.markdown(f"### 📈 EDA for `{fname}`")
+                                try:
+                                    profile = ProfileReport(
+                                        temp_df,
+                                        title=f"{fname} EDA Report",
+                                        explorative=True
+                                    )
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
+                                        profile.to_file(tmp.name)
+
+                                    with open(tmp.name, "r", encoding="utf-8") as f:
+                                        st.components.v1.html(f.read(), height=600, scrolling=True)
+
+                                    with open(tmp.name, "rb") as f:
+                                        st.download_button(
+                                            f"⬇️ Download {fname} EDA",
+                                            f,
+                                            file_name=f"{Path(fname).stem}_eda.html",
+                                            mime="text/html"
+                                        )
+                                except Exception as e:
+                                    st.error(f"Failed to generate EDA for {fname}: {e}")
 
         # ---- CSV URL ----
         # ---- CSV URL ----
