@@ -448,6 +448,16 @@ else:
 
                                 if df is not None:
                                     st.success("✅ File loaded successfully")
+                                    
+                                    # Create file_info for the single downloaded file
+                                    file_info = [{
+                                        "name": input_name,
+                                        "rows": len(df),
+                                        "cols": len(df.columns),
+                                    }]
+                                    # Show preview table of uploaded files
+                                    st.markdown("### 📋 Uploaded Files Summary")
+                                    st.dataframe(pd.DataFrame(file_info), use_container_width=True)
 
                     except Exception as e:
                         st.error(f"❌ Failed to load file: {e}")
@@ -467,8 +477,9 @@ else:
 
                 kaggle_dataset_name = st.text_input(
                     "Enter Kaggle dataset name (owner/dataset-name)",
-                    placeholder="heptapod/titanic"
+                    placeholder="Tanvir/titanic"
                 )
+                                               
 
                 if kaggle_dataset_name:
                     try:
@@ -478,6 +489,7 @@ else:
                         csv_names = list(kaggle_csv_files.keys())
 
                         st.success(f"✅ Found {len(csv_names)} CSV file(s)")
+                        
 
                         # ---------- Handling mode ----------
                         mode = st.radio(
