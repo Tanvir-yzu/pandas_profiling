@@ -291,48 +291,61 @@ else:
             with tab2:
                 st.markdown(
                     '<div class="info-text">'
-                    'Paste a direct CSV URL or a GitHub file link (.csv). '
-                    'GitHub links will be auto-converted.'
+                    'Paste a CSV URL, GitHub file link, or Google Drive share link. '
+                    'Links are auto-converted.'
                     '</div>',
                     unsafe_allow_html=True
                 )
 
                 csv_url = st.text_input(
-                    "Paste CSV or GitHub file URL",
-                    placeholder="https://github.com/user/repo/blob/main/data.csv"
+                    "Paste CSV / GitHub / Google Drive URL",
+                    placeholder="GitHub or Google Drive CSV link"
                 )
 
                 if csv_url:
                     try:
                         original_url = csv_url.strip()
 
-                        # ✅ Auto-convert GitHub blob URL → raw URL
+                        # ✅ GitHub blob → raw
                         if "github.com" in original_url and "/blob/" in original_url:
                             csv_url = original_url.replace(
                                 "https://github.com/",
                                 "https://raw.githubusercontent.com/"
                             ).replace("/blob/", "/")
 
-                            st.info(f"🔁 GitHub link converted to RAW:\n{csv_url}")
+                            st.info(f"🔁 GitHub link converted:\n{csv_url}")
 
-                        input_name = Path(csv_url).stem
+                        # ✅ Google Drive → direct download
+                        elif "drive.google.com" in original_url:
+                            import re
+                            match = re.search(r"/d/([a-zA-Z0-9_-]+)", original_url)
+                            if match:
+                                file_id = match.group(1)
+                                csv_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                                st.info(f"🔁 Google Drive link converted:\n{csv_url}")
+                            else:
+                                st.error("❌ Invalid Google Drive link format")
+                                csv_url = None
 
-                        response = requests.get(csv_url, timeout=15)
-                        response.raise_for_status()
+                        if csv_url:
+                            input_name = Path(csv_url).stem
+                            response = requests.get(csv_url, timeout=20)
+                            response.raise_for_status()
 
-                        # 🚫 HTML protection
-                        if "<html" in response.text.lower():
-                            st.error(
-                                "❌ This link does not point to raw CSV data.\n\n"
-                                "Make sure the file is a `.csv`."
-                            )
-                        else:
-                            df = load_csv_stringio(StringIO(response.text), csv_url)
-                            if df is not None:
-                                st.success("✅ CSV loaded successfully")
+                            # 🚫 HTML protection
+                            if "<html" in response.text.lower():
+                                st.error(
+                                    "❌ The link does not provide raw CSV data.\n\n"
+                                    "Make sure the file is shared publicly and is a CSV."
+                                )
+                            else:
+                                df = load_csv_stringio(StringIO(response.text), csv_url)
+                                if df is not None:
+                                    st.success("✅ CSV loaded successfully")
 
                     except Exception as e:
                         st.error(f"❌ Failed to load CSV: {e}")
+
 
 
         # ---- Kaggle Dataset ----
