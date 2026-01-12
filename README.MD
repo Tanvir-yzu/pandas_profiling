@@ -1,4 +1,4 @@
-# 📊 AI/ML EDA Generator
+# 📊 AI/ML Datasets EDA Generator
 
 A modern, web-based Exploratory Data Analysis (EDA) tool built with Streamlit and ydata-profiling. Transform your CSV data into comprehensive insights with just a few clicks!
 
