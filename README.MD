@@ -395,7 +395,7 @@ For support, please:
 - Include: CSV file size, dataset structure, error messages
 - Provide: Screenshots of errors, browser version, Python version
 - Check the documentation at: [Project Wiki]
-- Contact: your.email@example.com
+- Contact: 2020tanvir1971@gmail.com
 
 ### Quick Tips
 - Start with small datasets to test functionality
