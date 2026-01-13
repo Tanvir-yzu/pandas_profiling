@@ -8,6 +8,8 @@ import os
 import json
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pathlib import Path
+from io import BytesIO
+import re
 
 # ---------------- Page Config ----------------
 st.set_page_config(
@@ -380,15 +382,15 @@ else:
             with tab2:
                 st.markdown(
                     '<div class="info-text">'
-                    'Paste a CSV or TXT URL, GitHub file link, or Google Drive share link. '
+                    'Paste a CSV, TXT, Excel (.xlsx), GitHub file link, or Google Drive share link. '
                     'Links are auto-converted.'
                     '</div>',
                     unsafe_allow_html=True
                 )
 
                 file_url = st.text_input(
-                    "Paste CSV / TXT / GitHub / Google Drive URL",
-                    placeholder="CSV or TXT file link"
+                    "Paste CSV / TXT / Excel / GitHub / Google Drive URL",
+                    placeholder="File link"
                 )
 
                 if file_url:
@@ -406,7 +408,6 @@ else:
 
                         # ✅ Google Drive → direct download
                         elif "drive.google.com" in original_url:
-                            import re
                             match = re.search(r"/d/([a-zA-Z0-9_-]+)", original_url)
                             if match:
                                 file_id = match.group(1)
@@ -418,6 +419,7 @@ else:
 
                         if file_url:
                             input_name = Path(file_url).stem
+
                             response = requests.get(file_url, timeout=20)
                             response.raise_for_status()
 
@@ -427,37 +429,53 @@ else:
                             if "<html" in content.lower():
                                 st.error(
                                     "❌ The link does not provide raw data.\n\n"
-                                    "Make sure the file is public and is CSV or TXT."
+                                    "Make sure the file is public and is CSV, TXT, or Excel."
                                 )
 
                             else:
                                 # 🔹 Detect file type
-                                if file_url.lower().endswith(".txt"):
+                                lower_url = file_url.lower()
+
+                                if lower_url.endswith((".xlsx", ".xls")):
+                                    st.info("📊 Excel file detected")
+                                    df = pd.read_excel(BytesIO(response.content))
+
+                                elif lower_url.endswith(".txt"):
                                     try:
-                                        # Try reading TXT as CSV (auto delimiter)
-                                        df = pd.read_csv(StringIO(content), sep=None, engine="python")
+                                        df = pd.read_csv(
+                                            StringIO(content),
+                                            sep=None,
+                                            engine="python"
+                                        )
                                     except Exception:
-                                        # Fallback: plain text → single column
                                         df = pd.DataFrame(
                                             {"text": content.splitlines()}
                                         )
 
                                 else:
                                     # CSV default
-                                    df = load_csv_stringio(StringIO(content), file_url)
+                                    df = load_csv_stringio(
+                                        StringIO(content),
+                                        file_url
+                                    )
 
                                 if df is not None:
                                     st.success("✅ File loaded successfully")
-                                    
-                                    # Create file_info for the single downloaded file
+
                                     file_info = [{
                                         "name": input_name,
                                         "rows": len(df),
                                         "cols": len(df.columns),
                                     }]
-                                    # Show preview table of uploaded files
+
                                     st.markdown("### 📋 Uploaded Files Summary")
-                                    st.dataframe(pd.DataFrame(file_info), use_container_width=True)
+                                    st.dataframe(
+                                        pd.DataFrame(file_info),
+                                        use_container_width=True
+                                    )
+
+                                    # st.markdown("### 🔍 Data Preview")
+                                    # st.dataframe(df.head(), use_container_width=True)
 
                     except Exception as e:
                         st.error(f"❌ Failed to load file: {e}")
