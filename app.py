@@ -7,6 +7,7 @@ import requests
 import tempfile
 import os
 import re
+import csv
 from kaggle.api.kaggle_api_extended import KaggleApi
 from pathlib import Path
 
@@ -221,21 +222,73 @@ def sanitize_filename(name, fallback="dataset"):
     return name or fallback
 
 
-def load_file(file):
+def decode_bytes(data):
+    """Decode raw bytes, falling back through common encodings."""
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("latin-1")  # never fails
+
+
+def read_csv_robust(text, name="dataset"):
+    """
+    Parse delimited text, tolerating messy files:
+      1. detect the delimiter (, ; tab |) from a sample of lines
+      2. fast C parser with that delimiter
+      3. skip malformed rows (wrong number of fields) and warn the user
+    """
+    sep = ","
     try:
-        if file.name.endswith(".csv") or file.name.endswith(".txt"):
-            return pd.read_csv(file)
-        elif file.name.endswith(".xlsx") or file.name.endswith(".xls"):
+        sample = "\n".join(text.splitlines()[:50])
+        sep = csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+    except csv.Error:
+        pass
+
+    try:
+        return pd.read_csv(StringIO(text), sep=sep)
+    except pd.errors.ParserError:
+        pass
+
+    bad_lines = []
+
+    def _skip(line):
+        bad_lines.append(line)
+        return None  # drop the row
+
+    df = pd.read_csv(StringIO(text), sep=sep, engine="python", on_bad_lines=_skip)
+    if bad_lines:
+        st.warning(
+            f"⚠️ {name}: skipped {len(bad_lines)} malformed row(s) whose field count "
+            f"did not match the header ({len(df.columns)} columns). "
+            "This is usually caused by unquoted delimiters inside values."
+        )
+    return df
+
+
+def load_file(file):
+    name = Path(file.name).name
+    lower = name.lower()
+    try:
+        if lower.endswith((".csv", ".txt", ".tsv")):
+            raw = file.read()
+            text = decode_bytes(raw) if isinstance(raw, bytes) else raw
+            return read_csv_robust(text, name)
+        elif lower.endswith((".xlsx", ".xls")):
             try:
-                import openpyxl  # noqa: F401
                 return pd.read_excel(file)
-            except ModuleNotFoundError:
-                st.error("❌ Excel files require 'openpyxl'. Install it using `pip install openpyxl`")
+            except ImportError as e:
+                engine = "xlrd" if lower.endswith(".xls") else "openpyxl"
+                st.error(f"❌ Excel support requires '{engine}'. Install it using `pip install {engine}` ({e})")
                 return None
-        elif file.name.endswith(".json"):
+        elif lower.endswith(".json"):
             return pd.read_json(file)
+        else:
+            st.error(f"❌ Unsupported file type: {name}")
+            return None
     except Exception as e:
-        st.error(f"❌ Could not read file: {e}")
+        st.error(f"❌ Could not read file ({name}): {e}")
         return None
 
 
@@ -246,7 +299,7 @@ def load_path(path):
 
 def load_csv_stringio(string_io, name="dataset"):
     try:
-        return pd.read_csv(string_io)
+        return read_csv_robust(string_io.getvalue(), name)
     except Exception as e:
         st.error(f"❌ Could not read CSV ({name}): {e}")
         return None
@@ -555,7 +608,7 @@ else:
                             )
                         elif lower_path.endswith(".txt"):
                             try:
-                                df = pd.read_csv(StringIO(content), sep=None, engine="python")
+                                df = read_csv_robust(content, input_name)
                             except Exception:
                                 df = pd.DataFrame({"text": content.splitlines()})
                         else:
